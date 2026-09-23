@@ -1,0 +1,9 @@
+{
+  "name": "FejeTracker",
+  "short_name": "FejeTracker",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#101418",
+  "theme_color": "#101418",
+  "description": "Kortlæg og registrer fejning af cykelstier."
+}

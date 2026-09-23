@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#101418">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FejeTracker">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+  <title>FejeTracker</title>
+</head>
+<body>
+  <header>
+    <div><strong>FejeTracker</strong><span id="modeBadge">Klar</span></div>
+    <button id="locateBtn" class="small">◎ Find mig</button>
+  </header>
+
+  <main>
+    <div id="map"></div>
+
+    <section id="stats">
+      <div><span>Fejet i dag</span><strong id="sweptKm">0,00 km</strong></div>
+      <div><span>Mangler</span><strong id="leftKm">0,00 km</strong></div>
+      <div><span>Færdig</span><strong id="percent">0 %</strong></div>
+      <div><span>GPS</span><strong id="gps">—</strong></div>
+    </section>
+
+    <section class="controls">
+      <button id="mapBtn">＋ Kortlæg cykelsti</button>
+      <button id="sweepBtn" class="primary">▶ Start fejning</button>
+      <button id="pauseBtn" class="warn hidden">Ⅱ Pause</button>
+      <button id="stopBtn" class="danger hidden">■ Stop</button>
+    </section>
+
+    <section class="secondary">
+      <button id="listBtn">Cykelstier</button>
+      <button id="resetTodayBtn">Nulstil dagens fejning</button>
+      <button id="exportBtn">Backup</button>
+      <label class="import">Gendan<input id="importFile" type="file" accept=".json,application/json"></label>
+    </section>
+  </main>
+
+  <dialog id="segmentsDialog">
+    <div class="dialogHead"><strong>Kortlagte cykelstier</strong><button id="closeDialog">✕</button></div>
+    <div id="segmentsList"></div>
+  </dialog>
+
+  <dialog id="saveDialog">
+    <form method="dialog" id="saveForm">
+      <h3>Gem cykelsti</h3>
+      <input id="segmentName" placeholder="Fx Amager Landevej øst" autocomplete="off">
+      <div class="dialogButtons"><button value="cancel">Annuller</button><button id="saveSegment" value="default" class="primary">Gem</button></div>
+    </form>
+  </dialog>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
