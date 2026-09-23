@@ -1,4 +1,4 @@
-# FejeTracker PWA V1
+# FejeTracker PWA V1.1
 
 Første testversion til iPhone.
 
@@ -29,3 +29,9 @@ gemmes lokalt.
 
 GPS-tolerancen er 12 meter i app.js. Første praktiske test bør være en vej med cykelsti på
 begge sider, hvor kun den ene side køres under fejning.
+
+
+## V1.1
+- Find mig er flyttet til nederste højre hjørne af kortet.
+- Topbaren respekterer iPhones safe area bedre.
+- Cacheversionen er hævet, så opdateringen hentes.
