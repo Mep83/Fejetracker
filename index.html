@@ -10,15 +10,23 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="styles.css">
-  <title>FejeTracker v2.1</title>
+  <title>FejeTracker v2.2</title>
 </head>
 <body>
   <header>
-    <div><strong>FejeTracker v2.1</strong><span id="modeBadge">Klar</span></div>
+    <div><strong>FejeTracker v2.2</strong><span id="modeBadge">Klar</span></div>
   </header>
 
   <main>
     <div id="mapWrap"><div id="map"></div><button id="locateBtn" class="mapLocate" aria-label="Find mig">◎</button></div>
+    <section id="editorBar" class="editorBar hidden">
+      <button id="drawBtn">✏️ Tegn ny cykelsti</button>
+      <button id="deletePartBtn">✂️ Slet stykke</button>
+      <button id="undoEditBtn">↶ Fortryd</button>
+      <button id="finishEditBtn" class="primary">✓ Gem tegning</button>
+      <button id="closeEditorBtn">Luk editor</button>
+      <p id="editorHint" class="editorHint">Klik på kortet for at tegne en ny cykelsti.</p>
+    </section>
 
     <section id="stats">
       <div><span>Fejet i dag</span><strong id="sweptKm">0,00 km</strong></div>
@@ -36,6 +44,7 @@
 
     <section class="secondary">
       <button id="listBtn">Cykelstier</button>
+      <button id="editMapBtn">Rediger kort</button>
       <button id="resetTodayBtn">Nulstil dagens fejning</button>
       <button id="exportBtn">Backup</button>
       <label class="import">Gendan<input id="importFile" type="file" accept=".json,application/json"></label>

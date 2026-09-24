@@ -199,3 +199,25 @@ document.getElementById("exportBtn").onclick=()=>{const blob=new Blob([JSON.stri
 document.getElementById("importFile").onchange=async e=>{try{const x=JSON.parse(await e.target.files[0].text());if(!Array.isArray(x.segments))throw 0;if(confirm("Erstat nuværende data med denne backup?")){state=x;state.swept??={};save();render()}}catch{alert("Backup-filen kunne ikke læses.")}};
 if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js");
 render();startWatch();
+
+// ---- v2.2 Korteditor (PC/iPhone) ----
+let editorMode=null, drawPoints=[], drawLine=null, editHistory=[];
+const editorBar=document.getElementById("editorBar"), editorHint=document.getElementById("editorHint");
+function snapshotEdit(){editHistory.push(JSON.stringify(state.segments));if(editHistory.length>20)editHistory.shift()}
+function setEditorMode(m){editorMode=m;drawPoints=[];if(drawLine){map.removeLayer(drawLine);drawLine=null}
+  document.getElementById("drawBtn").classList.toggle("active",m==="draw");
+  document.getElementById("deletePartBtn").classList.toggle("active",m==="delete");
+  editorHint.textContent=m==="draw"?"Klik langs cykelstien. Når du er færdig, tryk Gem tegning.":m==="delete"?"Klik på det røde stykke, der skal slettes. Kun den valgte kant fjernes.":"Vælg et redigeringsværktøj.";
+}
+function openEditor(){if(mode!=="idle")return alert("Stop kortlægning/fejning før du redigerer kortet.");editorBar.classList.remove("hidden");setEditorMode("draw")}
+function closeEditor(){editorBar.classList.add("hidden");setEditorMode(null);render()}
+function redrawDraft(){if(drawLine)map.removeLayer(drawLine);if(drawPoints.length>1)drawLine=L.polyline(drawPoints,{color:"#2589ff",weight:7,dashArray:"8 5"}).addTo(map)}
+function nearestEdge(ll,maxD=18){let best=null;state.segments.forEach(seg=>{for(let i=1;i<seg.points.length;i++){if(meters(seg.points[i-1],seg.points[i])>MAX_GAP)continue;const d=pointSegDist(ll,seg.points[i-1],seg.points[i]);if(d<=maxD&&(!best||d<best.d))best={seg,i,d}}});return best}
+function deleteEdgeAt(ll){const hit=nearestEdge(ll);if(!hit)return alert("Jeg fandt ikke en cykelsti tæt nok på klikket. Zoom længere ind og prøv igen.");snapshotEdit();const seg=hit.seg,i=hit.i,a=seg.points.slice(0,i),b=seg.points.slice(i);const repl=[];if(a.length>1)repl.push({...seg,id:crypto.randomUUID(),name:seg.name+" A",points:a});if(b.length>1)repl.push({...seg,id:crypto.randomUUID(),name:seg.name+" B",points:b});state.segments=state.segments.flatMap(s=>s.id===seg.id?repl:[s]);save();render()}
+map.on("click",e=>{if(editorBar.classList.contains("hidden"))return;const ll=[e.latlng.lat,e.latlng.lng];if(editorMode==="draw"){drawPoints.push(ll);redrawDraft()}else if(editorMode==="delete")deleteEdgeAt(ll)});
+document.getElementById("editMapBtn").onclick=openEditor;
+document.getElementById("drawBtn").onclick=()=>setEditorMode("draw");
+document.getElementById("deletePartBtn").onclick=()=>setEditorMode("delete");
+document.getElementById("closeEditorBtn").onclick=closeEditor;
+document.getElementById("undoEditBtn").onclick=()=>{if(drawPoints.length){drawPoints.pop();redrawDraft();return}if(!editHistory.length)return alert("Der er ikke mere at fortryde.");state.segments=JSON.parse(editHistory.pop());save();render()};
+document.getElementById("finishEditBtn").onclick=()=>{if(editorMode!=="draw"||drawPoints.length<2)return alert("Tegn mindst to punkter først.");const name=prompt("Navn på cykelstien:","Manuelt tegnet cykelsti")||"Manuelt tegnet cykelsti";snapshotEdit();state.segments.push({id:crypto.randomUUID(),name,created:new Date().toISOString(),source:"manual",points:[...drawPoints]});drawPoints=[];if(drawLine){map.removeLayer(drawLine);drawLine=null}save();render();editorHint.textContent="Gemt. Du kan tegne næste cykelsti."};
