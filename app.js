@@ -1,4 +1,4 @@
-const APP_VERSION="2.2.1";
+const APP_VERSION="2.2.2";
 const KEY="fejetracker-v1";
 const TODAY=()=>new Date().toISOString().slice(0,10);
 const MAX_GAP=25;          // forbind aldrig GPS-hop større end 25 m
@@ -71,7 +71,11 @@ function greenParts(seg){
 }
 
 const map=L.map("map",{zoomControl:true}).setView([55.63,12.60],13);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:20,attribution:"© OpenStreetMap"}).addTo(map);
+const streetLayer=L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:20,attribution:"© OpenStreetMap contributors"});
+// Esri World Imagery bruges som redigeringshjælp. Attribution skal vises.
+const satelliteLayer=L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,maxNativeZoom:19,attribution:"Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community"});
+streetLayer.addTo(map);
+L.control.layers({"Kort":streetLayer,"Satellit":satelliteLayer},null,{position:"topright",collapsed:false}).addTo(map);
 
 function clearSegLayers(){layers.forEach(arr=>arr.forEach(l=>map.removeLayer(l)));layers.clear()}
 function render(){
@@ -198,7 +202,7 @@ document.getElementById("closeDialog").onclick=()=>document.getElementById("segm
 document.getElementById("resetTodayBtn").onclick=()=>{if(confirm("Nulstil markeringen af dagens fejning?")){delete state.swept[TODAY()];save();render()}};
 document.getElementById("exportBtn").onclick=()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`FejeTracker-backup-${TODAY()}.json`;a.click();URL.revokeObjectURL(a.href)};
 document.getElementById("importFile").onchange=async e=>{try{const x=JSON.parse(await e.target.files[0].text());if(!Array.isArray(x.segments))throw 0;if(confirm("Erstat nuværende data med denne backup?")){state=x;state.swept??={};save();render()}}catch{alert("Backup-filen kunne ikke læses.")}};
-if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js?v=2.2.1").then(r=>r.update()).catch(()=>{});}
+if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js?v=2.2.2").then(r=>r.update()).catch(()=>{});}
 render();startWatch();
 
 // ---- v2.2 Korteditor (PC/iPhone) ----
