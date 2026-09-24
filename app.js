@@ -1,3 +1,4 @@
+const APP_VERSION="2.2.1";
 const KEY="fejetracker-v1";
 const TODAY=()=>new Date().toISOString().slice(0,10);
 const MAX_GAP=25;          // forbind aldrig GPS-hop større end 25 m
@@ -197,7 +198,7 @@ document.getElementById("closeDialog").onclick=()=>document.getElementById("segm
 document.getElementById("resetTodayBtn").onclick=()=>{if(confirm("Nulstil markeringen af dagens fejning?")){delete state.swept[TODAY()];save();render()}};
 document.getElementById("exportBtn").onclick=()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`FejeTracker-backup-${TODAY()}.json`;a.click();URL.revokeObjectURL(a.href)};
 document.getElementById("importFile").onchange=async e=>{try{const x=JSON.parse(await e.target.files[0].text());if(!Array.isArray(x.segments))throw 0;if(confirm("Erstat nuværende data med denne backup?")){state=x;state.swept??={};save();render()}}catch{alert("Backup-filen kunne ikke læses.")}};
-if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js");
+if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js?v=2.2.1").then(r=>r.update()).catch(()=>{});}
 render();startWatch();
 
 // ---- v2.2 Korteditor (PC/iPhone) ----
@@ -215,7 +216,8 @@ function redrawDraft(){if(drawLine)map.removeLayer(drawLine);if(drawPoints.lengt
 function nearestEdge(ll,maxD=18){let best=null;state.segments.forEach(seg=>{for(let i=1;i<seg.points.length;i++){if(meters(seg.points[i-1],seg.points[i])>MAX_GAP)continue;const d=pointSegDist(ll,seg.points[i-1],seg.points[i]);if(d<=maxD&&(!best||d<best.d))best={seg,i,d}}});return best}
 function deleteEdgeAt(ll){const hit=nearestEdge(ll);if(!hit)return alert("Jeg fandt ikke en cykelsti tæt nok på klikket. Zoom længere ind og prøv igen.");snapshotEdit();const seg=hit.seg,i=hit.i,a=seg.points.slice(0,i),b=seg.points.slice(i);const repl=[];if(a.length>1)repl.push({...seg,id:crypto.randomUUID(),name:seg.name+" A",points:a});if(b.length>1)repl.push({...seg,id:crypto.randomUUID(),name:seg.name+" B",points:b});state.segments=state.segments.flatMap(s=>s.id===seg.id?repl:[s]);save();render()}
 map.on("click",e=>{if(editorBar.classList.contains("hidden"))return;const ll=[e.latlng.lat,e.latlng.lng];if(editorMode==="draw"){drawPoints.push(ll);redrawDraft()}else if(editorMode==="delete")deleteEdgeAt(ll)});
-document.getElementById("editMapBtn").onclick=openEditor;
+const editMapBtn=document.getElementById("editMapBtn");
+if(editMapBtn){editMapBtn.addEventListener("click",e=>{e.preventDefault();openEditor();});}
 document.getElementById("drawBtn").onclick=()=>setEditorMode("draw");
 document.getElementById("deletePartBtn").onclick=()=>setEditorMode("delete");
 document.getElementById("closeEditorBtn").onclick=closeEditor;
