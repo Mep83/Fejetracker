@@ -1,12 +1,15 @@
 const KEY="fejetracker-v1";
 const TODAY=()=>new Date().toISOString().slice(0,10);
 const MAX_GAP=25;          // forbind aldrig GPS-hop større end 25 m
-const MATCH_TOL=9;         // maksimal normal afstand til kortlagt sti
-const HOLD_TOL=14;         // lidt ekstra tolerance når vi allerede følger samme sti
-const HEADING_TOL=55;      // retning må afvige op til 55 grader
+const MATCH_TOL=7;         // konservativ maksimal afstand til kortlagt sti
+const HOLD_TOL=9;          // lidt ekstra tolerance når vi allerede følger samme sti
+const HEADING_TOL=40;      // retning skal passe tydeligt
+const MAX_SWEEP_ACCURACY=8;// ved dårligere GPS markeres intet grønt
+const CONFIRM_FIXES=3;     // samme spor skal bekræftes flere gange før markering
+const LOCK_EDGE_WINDOW=14; // låst spor må kun fortsætte lokalt langs samme registrering
 let state=load();
 let mode="idle", paused=false, watchId=null, current=[], currentLine=null, posMarker=null;
-let layers=new Map(), recentGps=[], lastMatch=null, lastPaint=0, saveTimer=null;
+let layers=new Map(), recentGps=[], lastMatch=null, candidateMatch=null, candidateCount=0, missCount=0, lastPaint=0, saveTimer=null;
 
 function load(){
   try{
@@ -100,7 +103,7 @@ function updateStats(){
   document.getElementById("percent").textContent=(total?Math.round(done/total*100):0)+" %";
 }
 function setMode(m){
-  mode=m;paused=false;recentGps=[];lastMatch=null;
+  mode=m;paused=false;recentGps=[];lastMatch=null;candidateMatch=null;candidateCount=0;missCount=0;
   const names={idle:"Klar",mapping:"Kortlægger",sweeping:"Fejer"};
   document.getElementById("modeBadge").textContent=names[m];
   document.getElementById("mapBtn").classList.toggle("hidden",m!=="idle");
@@ -118,28 +121,36 @@ function findBestEdge(ll){
   state.segments.forEach(seg=>{
     for(let i=1;i<seg.points.length;i++){
       const a=seg.points[i-1],b=seg.points[i];if(meters(a,b)>MAX_GAP)continue;
-      const d=pointSegDist(ll,a,b);let tol=MATCH_TOL;
-      // Hysterese: hold fast i den del af sporet vi allerede følger.
-      const nearLast=lastMatch && lastMatch.id===seg.id && Math.abs(i-lastMatch.i)<=18;
-      if(nearLast)tol=HOLD_TOL;if(d>tol)continue;
+      // Når vi først er låst på et spor, må vi kun fortsætte i nærheden af sidste kant.
+      if(lastMatch && (lastMatch.id!==seg.id || Math.abs(i-lastMatch.i)>LOCK_EDGE_WINDOW))continue;
+      const d=pointSegDist(ll,a,b);const tol=lastMatch?HOLD_TOL:MATCH_TOL;if(d>tol)continue;
       let dirPenalty=0;
-      if(hdg!==null){const dd=headingDiff(hdg,bearing(a,b));if(dd>HEADING_TOL && !nearLast)continue;dirPenalty=dd*0.035;}
-      let score=d+dirPenalty;
-      if(nearLast)score-=3.0;
+      if(hdg!==null){const dd=headingDiff(hdg,bearing(a,b));if(dd>HEADING_TOL)continue;dirPenalty=dd*0.05;}
+      const score=d+dirPenalty+(lastMatch?Math.abs(i-lastMatch.i)*0.12:0);
       if(!best||score<best.score)best={id:seg.id,i,d,score};
     }
   });
   return best;
 }
-function markAround(match,ll){
+function confirmMatch(m){
+  if(!m){candidateMatch=null;candidateCount=0;missCount++;if(missCount>=4)lastMatch=null;return null;}
+  missCount=0;
+  if(lastMatch){lastMatch=m;return m;}
+  const same=candidateMatch && candidateMatch.id===m.id && Math.abs(candidateMatch.i-m.i)<=LOCK_EDGE_WINDOW;
+  if(same)candidateCount++;else{candidateMatch=m;candidateCount=1;}
+  candidateMatch=m;
+  if(candidateCount>=CONFIRM_FIXES){lastMatch=m;candidateMatch=null;candidateCount=0;return m;}
+  return null;
+}
+function markMatchedEdge(match,ll){
   if(!match)return false;const seg=state.segments.find(s=>s.id===match.id);if(!seg)return false;
-  const r=sweptSet()[seg.id]??={edges:[]};r.edges??=[];const done=new Set(r.edges);let changed=false;
-  // Markér kun den del der faktisk er passeret: ca. 12 m omkring den aktuelle position.
-  for(let i=Math.max(1,match.i-4);i<=Math.min(seg.points.length-1,match.i+4);i++){
-    if(meters(seg.points[i-1],seg.points[i])>MAX_GAP)continue;
-    if(pointSegDist(ll,seg.points[i-1],seg.points[i])<=12 && !done.has(i)){done.add(i);changed=true;}
-  }
-  if(changed)r.edges=[...done].sort((a,b)=>a-b);return changed;
+  const i=match.i;if(i<1||i>=seg.points.length)return false;
+  const a=seg.points[i-1],b=seg.points[i];if(meters(a,b)>MAX_GAP)return false;
+  // Kun den ene kant, vi faktisk følger, må blive grøn. Ingen nabokanter markeres automatisk.
+  if(pointSegDist(ll,a,b)>MATCH_TOL)return false;
+  const r=sweptSet()[seg.id]??={edges:[]};r.edges??=[];
+  if(r.edges.includes(i))return false;
+  r.edges.push(i);r.edges.sort((a,b)=>a-b);return true;
 }
 function onPos(p){
   const ll=[p.coords.latitude,p.coords.longitude],acc=Math.round(p.coords.accuracy);
@@ -156,8 +167,10 @@ function onPos(p){
       const parts=splitValid(current);currentLine=L.layerGroup(parts.map(part=>L.polyline(part,{color:"#2589ff",weight:7}))).addTo(map);
     }
   }else if(mode==="sweeping"){
-    const m=findBestEdge(ll);if(m)lastMatch=m;
-    if(markAround(m,ll)){
+    // Dårlig GPS må hellere efterlade lidt rødt end markere en forkert cykelsti grøn.
+    if(p.coords.accuracy>MAX_SWEEP_ACCURACY){candidateMatch=null;candidateCount=0;return;}
+    const confirmed=confirmMatch(findBestEdge(ll));
+    if(markMatchedEdge(confirmed,ll)){
       scheduleSave();const now=Date.now();if(now-lastPaint>900){lastPaint=now;render();}
     }
   }
@@ -167,7 +180,7 @@ function onGpsError(e){document.getElementById("gps").textContent="Fejl";if(e.co
 document.getElementById("locateBtn").onclick=()=>navigator.geolocation.getCurrentPosition(p=>{map.setView([p.coords.latitude,p.coords.longitude],17);onPos(p)},onGpsError,{enableHighAccuracy:true});
 document.getElementById("mapBtn").onclick=()=>{current=[];if(startWatch())setMode("mapping")};
 document.getElementById("sweepBtn").onclick=()=>{if(!state.segments.length)return alert("Kortlæg mindst én cykelsti først.");if(startWatch())setMode("sweeping")};
-document.getElementById("pauseBtn").onclick=()=>{paused=!paused;recentGps=[];lastMatch=null;document.getElementById("pauseBtn").textContent=paused?"▶ Fortsæt":"Ⅱ Pause";document.getElementById("modeBadge").textContent=paused?"Pause":(mode==="mapping"?"Kortlægger":"Fejer")};
+document.getElementById("pauseBtn").onclick=()=>{paused=!paused;recentGps=[];lastMatch=null;candidateMatch=null;candidateCount=0;missCount=0;document.getElementById("pauseBtn").textContent=paused?"▶ Fortsæt":"Ⅱ Pause";document.getElementById("modeBadge").textContent=paused?"Pause":(mode==="mapping"?"Kortlægger":"Fejer")};
 document.getElementById("stopBtn").onclick=()=>{
   if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null}save();
   if(mode==="mapping"&&current.length>1){document.getElementById("segmentName").value="Cykelsti "+(state.segments.length+1);document.getElementById("saveDialog").showModal()}
